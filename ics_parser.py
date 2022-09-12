@@ -1,7 +1,4 @@
 from icalendar import Calendar
-import datetime
-
-TIMEZONE_DIFFERENCE = datetime.datetime.now().astimezone().utcoffset().seconds
 
 class Event:
     def __init__(self, name, start, end):
@@ -15,6 +12,6 @@ def getEvents(file):
     gcal = Calendar.from_ical(g.read())
     for component in gcal.walk():
         if component.name == "VEVENT":
-            events.append(Event(str(component.get('summary')), component.get('dtstart').dt + datetime.timedelta(seconds=TIMEZONE_DIFFERENCE), component.get('dtend').dt + datetime.timedelta(seconds=TIMEZONE_DIFFERENCE)))
+            events.append(Event(str(component.get('summary')), component.get('dtstart').dt, component.get('dtend').dt))
     g.close()
     return events

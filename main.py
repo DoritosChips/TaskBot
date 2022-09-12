@@ -10,7 +10,7 @@ import os
 TOKEN = open("token.txt").read()
 
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
-TIMEZONE_DIFFERENCE = datetime.datetime.now().astimezone().utcoffset().seconds
+TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.datetime.now().astimezone().utcoffset().seconds
 
 updater = Updater(TOKEN)
 dispatcher = updater.dispatcher
@@ -43,7 +43,7 @@ async def remind():
     while True:
         reminders_new = []
         for reminder in reminders:
-            if time.time() >= reminder.time - (3600 * 3 - TIMEZONE_DIFFERENCE):
+            if time.time() >= reminder.time - TIMEZONE_DIFFERENCE:
                 bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.text}</b>.", parse_mode="HTML")
             else:
                 reminders_new.append(reminder)
@@ -205,6 +205,8 @@ def icsHandler(update: Update, context: CallbackContext):
         
         events = getEvents(filename)
         for event in events:
+            event.start += datetime.timedelta(hours=3)
+            event.end += datetime.timedelta(hours=3)
             start = event.start.strftime("%d.%m.%Y %H:%M")
             if event.start.strftime("%d.%m.%Y") == event.end.strftime("%d.%m.%Y"):
                 end = event.end.strftime("%H:%M")
