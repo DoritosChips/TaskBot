@@ -205,6 +205,8 @@ def icsHandler(update: Update, context: CallbackContext):
         
         events = getEvents(filename)
         for event in events:
+            event.start += datetime.timedelta(seconds=TIMEZONE_DIFFERENCE)
+            event.end += datetime.timedelta(seconds=TIMEZONE_DIFFERENCE)
             start = event.start.strftime("%d.%m.%Y %H:%M")
             if event.start.strftime("%d.%m.%Y") == event.end.strftime("%d.%m.%Y"):
                 end = event.end.strftime("%H:%M")
