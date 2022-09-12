@@ -8,7 +8,9 @@ from ics_parser import *
 import os
 
 TOKEN = open("token.txt").read()
+
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
+TIMEZONE_DIFFERENCE = datetime.datetime.now().astimezone().utcoffset().seconds
 
 updater = Updater(TOKEN)
 dispatcher = updater.dispatcher
@@ -41,7 +43,7 @@ async def remind():
     while True:
         reminders_new = []
         for reminder in reminders:
-            if time.time() >= reminder.time:
+            if time.time() >= reminder.time - (3600 * 3 - TIMEZONE_DIFFERENCE):
                 bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.text}</b>.", parse_mode="HTML")
             else:
                 reminders_new.append(reminder)
