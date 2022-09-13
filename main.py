@@ -53,6 +53,9 @@ async def remind():
 def startCommandHandler(update: Update, context: CallbackContext):
     if update.effective_chat.id not in users:
         users[update.effective_chat.id] = User()
+
+    users[update.effective_chat.id].current_task = users[update.effective_chat.id].current_event = None
+    users[update.effective_chat.id].current_page = 0
     
     context.bot.send_message(chat_id=update.effective_chat.id, text="Приветствую!", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
