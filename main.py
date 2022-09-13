@@ -21,6 +21,7 @@ class User:
         self.current_task = None
         self.events = []
         self.current_event = None
+        self.current_page = 0
 
 class Task:
     def __init__(self, title):
@@ -103,14 +104,27 @@ def cancelTaskCreation(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def showTaskList(update: Update, context: CallbackContext):
+    buttons = [[KeyboardButton("✏️Создать задачу")]]
+    page = users[update.effective_chat.id].current_page
+    for task in users[update.effective_chat.id].tasks[page * 10:page * 10 + 10]:
+        buttons.append([task.title])
+    page_buttons = []
+    if page > 0:
+        page_buttons.append("<")
+    if (page + 1) * 10 < len(users[update.effective_chat.id].tasks):
+        page_buttons.append(">")
+    if page_buttons != []:
+        buttons.append(page_buttons)
+        
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {users[update.effective_chat.id].current_page + 1}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+
 def viewTasks(update: Update, context: CallbackContext):
     if update.effective_chat.id not in users:
         users[update.effective_chat.id] = User()
 
-    buttons = [[KeyboardButton("✏️Создать задачу")]]
-    for task in users[update.effective_chat.id].tasks:
-        buttons.append([task.title])
-    context.bot.send_message(chat_id=update.effective_chat.id, text="📖Ваши задачи. /menu, чтобы вернуться на главную.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    context.bot.send_message(chat_id=update.effective_chat.id, text="📖Ваши задачи. /menu, чтобы вернуться на главную.")
+    showTaskList(update, context)
     
     return 0
 
@@ -134,6 +148,7 @@ def viewTask(update: Update, context: CallbackContext):
 
 
 def mainMenu(update: Update, context: CallbackContext):
+    users[update.effective_chat.id].current_page = 0
     context.bot.send_message(chat_id=update.effective_chat.id, text="🏠Главное меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
@@ -172,11 +187,23 @@ def cancelReminderCreation(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def tasksPrevPage(update: Update, context: CallbackContext):
+    users[update.effective_chat.id].current_page -= 1
+    showTaskList(update, context)
+
+    return 0
+
+def tasksNextPage(update: Update, context: CallbackContext):
+    users[update.effective_chat.id].current_page += 1
+    showTaskList(update, context)
+
+    return 0
+
 viewTasksConvHandler = ConversationHandler(
     entry_points=[MessageHandler(Filters.regex("📝Мои задачи"), viewTasks)],
 
     states={
-        0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("✏️Создать задачу"), createTask), MessageHandler(Filters.text, viewTask)],
+        0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("✏️Создать задачу"), createTask), MessageHandler(Filters.text, viewTask), MessageHandler(Filters.regex("<"), tasksPrevPage), MessageHandler(Filters.regex(">"), tasksNextPage)],
         1: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("⏰Добавить напоминание"), createTaskReminder), MessageHandler(Filters.regex("❌Удалить задачу"), deleteTask)],
         2: [MessageHandler(Filters.regex("🚫Отменить добавление напоминания"), cancelReminderCreation), MessageHandler(Filters.text, setTaskReminder)],
         3: [MessageHandler(Filters.regex("🚫Отменить создание задачи"), cancelTaskCreation), MessageHandler(Filters.text, setTitle)],
@@ -227,14 +254,27 @@ def icsHandler(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def showEventsList(update: Update, context: CallbackContext):
+    buttons = [["📲Импортировать календарь"]]
+    page = users[update.effective_chat.id].current_page
+    for event in users[update.effective_chat.id].events[page * 10:page * 10 + 10]:
+        buttons.append([event.title])
+    page_buttons = []
+    if page > 0:
+        page_buttons.append("<")
+    if (page + 1) * 10 < len(users[update.effective_chat.id].events):
+        page_buttons.append(">")
+    if page_buttons != []:
+        buttons.append(page_buttons)
+        
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {users[update.effective_chat.id].current_page + 1}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+
 def viewCalendar(update: Update, context: CallbackContext):
     if update.effective_chat.id not in users:
         users[update.effective_chat.id] = User()
 
-    buttons = [["📲Импортировать календарь"]]
-    for event in users[update.effective_chat.id].events:
-        buttons.append([event.title])
-    context.bot.send_message(chat_id=update.effective_chat.id, text="📅Календарь. /menu, чтобы вернуться на главную.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    context.bot.send_message(chat_id=update.effective_chat.id, text="📅Календарь. /menu, чтобы вернуться на главную.")
+    showEventsList(update, context)
     
     return 0
 
@@ -263,12 +303,23 @@ def cancelIcsImport(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def calendarPrevPage(update: Update, context: CallbackContext):
+    users[update.effective_chat.id].current_page -= 1
+    showEventsList(update, context)
+
+    return 0
+
+def calendarNextPage(update: Update, context: CallbackContext):
+    users[update.effective_chat.id].current_page += 1
+    showEventsList(update, context)
+
+    return 0
 
 viewCalendarConvHandler = ConversationHandler(
     entry_points=[MessageHandler(Filters.regex("📅Календарь"), viewCalendar)],
 
     states={
-        0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("📲Импортировать календарь"), importCalendar), MessageHandler(Filters.text, viewEvent)],
+        0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("📲Импортировать календарь"), importCalendar), MessageHandler(Filters.regex("<"), calendarPrevPage), MessageHandler(Filters.regex(">"), calendarNextPage), MessageHandler(Filters.text, viewEvent)],
         1: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("❌Удалить событие"), deleteEvent)],
         2: [MessageHandler(Filters.regex("🚫Отменить импорт календаря"), cancelIcsImport), MessageHandler(Filters.document, icsHandler)]
     },
