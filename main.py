@@ -7,7 +7,7 @@ import datetime
 from ics_parser import *
 import os
 
-TOKEN = open("token.txt").read()
+TOKEN = os.environ.get('TOKEN')
 
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
 TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.datetime.now().astimezone().utcoffset().seconds
