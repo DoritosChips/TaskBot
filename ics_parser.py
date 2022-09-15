@@ -6,7 +6,7 @@ class Event:
         self.start = start
         self.end = end
 
-def getEvents(file):
+def getEvents(file)->list[Event]:
     events = []
     g = open(file,'rb')
     gcal = Calendar.from_ical(g.read())
