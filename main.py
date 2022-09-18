@@ -22,18 +22,21 @@ class User:
         self.events = []
         self.current_event = None
         self.current_page = 0
+        self.current_task_id = 0
 
 class Task:
-    def __init__(self, title):
+    def __init__(self, id: int, title: str):
+        self.id = id
         self.title = title
         self.desc = ""
         self.reminders = []
 
 class Reminder:
-    def __init__(self, user_id, time, text):
+    def __init__(self, user_id, time, text, task_id=0):
         self.user_id = user_id
         self.time = time
         self.text = text
+        self.task_id = task_id
 
 users = {}
 reminders = []
@@ -74,14 +77,15 @@ def setTitle(update: Update, context: CallbackContext):
             users[update.effective_chat.id].current_task = None
             return ConversationHandler.END
 
-    for task in users[update.effective_chat.id].tasks:
-        if task.title == update.message.text:
-            buttons = MAIN_MENU_BUTTONS
-            context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Задача с таким названием уже существует.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
-            users[update.effective_chat.id].current_task = None
-            return ConversationHandler.END
+    # for task in users[update.effective_chat.id].tasks:
+    #     if task.title == update.message.text:
+    #         buttons = MAIN_MENU_BUTTONS
+    #         context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Задача с таким названием уже существует.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    #         users[update.effective_chat.id].current_task = None
+    #         return ConversationHandler.END
 
-    users[update.effective_chat.id].current_task = Task(update.message.text)
+    users[update.effective_chat.id].current_task_id += 1
+    users[update.effective_chat.id].current_task = Task(users[update.effective_chat.id].current_task_id, update.message.text)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Введите описание или /skip, чтобы создать задачу без описания.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить создание задачи")]], resize_keyboard=True))
 
     return 4
@@ -111,7 +115,7 @@ def showTaskList(update: Update, context: CallbackContext):
     buttons = [[KeyboardButton("✏️Создать задачу")]]
     page = users[update.effective_chat.id].current_page
     for task in users[update.effective_chat.id].tasks[page * 10:page * 10 + 10]:
-        buttons.append([task.title])
+        buttons.append([f"{task.id}: {task.title}"])
     page_buttons = []
     if page > 0:
         page_buttons.append("<")
@@ -133,18 +137,21 @@ def viewTasks(update: Update, context: CallbackContext):
 
 def viewTask(update: Update, context: CallbackContext):
     for task in users[update.effective_chat.id].tasks:
-        if task.title == update.message.text:
-            users[update.effective_chat.id].current_task = task
-            buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Добавить напоминание")], [KeyboardButton("❌Удалить задачу")]]
-            text = f"<b>{'• ' + task.title}</b>"
-            if task.desc != "":
-                text += f"\n{task.desc}"
-            if task.reminders != []:
-                text += "\n\n-----"
-                for reminder in task.reminders:
-                    text += f"\n⏰Напоминание: {reminder}"
-            context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
-            return 1
+        try:
+            if task.id == int(update.message.text.split(":")[0]):
+                users[update.effective_chat.id].current_task = task
+                buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Добавить напоминание")], [KeyboardButton("❌Удалить задачу")]]
+                text = f"<b>{'• ' + task.title}</b>"
+                if task.desc != "":
+                    text += f"\n{task.desc}"
+                if task.reminders != []:
+                    text += "\n\n-----"
+                    for reminder in task.reminders:
+                        text += f"\n⏰Напоминание: {reminder}"
+                context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
+                return 1
+        except:
+            pass
     
     context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Такой задачи не существует.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
     return ConversationHandler.END
@@ -163,6 +170,12 @@ def createTaskReminder(update: Update, context: CallbackContext):
 
 def deleteTask(update: Update, context: CallbackContext):
     users[update.effective_chat.id].tasks.pop(users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task))
+    reminders_new = []
+    global reminders
+    for reminder in reminders:
+        if reminder.task_id != users[update.effective_chat.id].current_task.id:
+            reminders_new.append(reminder)
+    reminders = reminders_new[:]
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача удалена: <b>{users[update.effective_chat.id].current_task.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     users[update.effective_chat.id].current_task = None
     
@@ -172,7 +185,7 @@ def setTaskReminder(update: Update, context: CallbackContext):
     try:
         time = datetime.datetime(*[int(i) for i in update.message.text.split(".")])
 
-        reminders.append(Reminder(update.effective_chat.id, time.timestamp(), users[update.effective_chat.id].current_task.title))
+        reminders.append(Reminder(update.effective_chat.id, time.timestamp(), users[update.effective_chat.id].current_task.title, users[update.effective_chat.id].current_task.id))
 
         users[update.effective_chat.id].tasks[users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task)].reminders.append(time)
 
