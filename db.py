@@ -69,6 +69,21 @@ def deleteTask(connection: pymysql.connections.Connection, user_id: int, task_id
     cursor.execute(delete_task)
     connection.commit()
 
+def deleteEvent(connection: pymysql.connections.Connection, user_id: int, event_id: int):
+    cursor = connection.cursor()
+    delete_event = f"DELETE FROM `events` WHERE user_id = {user_id} and task_id = {event_id}"
+    cursor.execute(delete_event)
+    connection.commit()
+
+def deleteRemind(connection: pymysql.connections.Connection, user_id: int, event_id: int, task_id):
+    cursor = connection.cursor()
+    if task_id!=-1:
+        delete_event = f"DELETE FROM `events` WHERE user_id = {user_id} and task_id = {task_id}"
+    else:
+        delete_event = f"DELETE FROM `events` WHERE user_id = {user_id} and task_id = {event_id}"
+    cursor.execute(delete_event)
+    connection.commit()
+
 def main():
     connection = connectToDB()
     deleteTask(connection, 4, 1)
