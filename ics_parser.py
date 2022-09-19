@@ -1,12 +1,5 @@
 from icalendar import Calendar
-
-class Event:
-    def __init__(self, user_id, event_id, title, start, end):
-        self.user_id = user_id
-        self.event_id = event_id
-        self.title = title
-        self.start = start
-        self.end = end
+from classes import *
 
 def getEvents(file)->list[Event]:
     events = []

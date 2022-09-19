@@ -3,6 +3,7 @@ from config import *
 from main import Task, Reminder
 from ics_parser import Event
 from datetime import datetime
+from classes import *
 
 def connectToDB():
     connection = pymysql.connect(
@@ -68,6 +69,15 @@ def deleteTask(connection: pymysql.connections.Connection, user_id: int, task_id
     delete_task = f"DELETE FROM `tasks` WHERE user_id = {user_id} and task_id = {task_id}"
     cursor.execute(delete_task)
     connection.commit()
+    current_task_id = task_id + 1
+    while True:
+        cursor.execute(f"SELECT EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})")
+        if cursor.fetchall()[0][f"EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})"]:
+            cursor.execute(f"UPDATE `tasks` SET task_id={current_task_id-1} WHERE user_id={user_id} and task_id={current_task_id}")
+            connection.commit()
+            current_task_id += 1
+        else:
+            break
 
 def deleteEvent(connection: pymysql.connections.Connection, user_id: int, event_id: int):
     cursor = connection.cursor()
@@ -86,7 +96,7 @@ def deleteRemind(connection: pymysql.connections.Connection, user_id: int, event
 
 def main():
     connection = connectToDB()
-    deleteTask(connection, 4, 1)
+    deleteTask(connection, 1, 1)
 
 if __name__ == "__main__":
     main()
