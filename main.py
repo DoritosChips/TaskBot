@@ -2,8 +2,7 @@ from telegram import *
 from telegram.ext import *
 from requests import *
 import asyncio
-import time
-import datetime
+from datetime import *
 from ics_parser import *
 from classes import *
 import os
@@ -12,36 +11,30 @@ import db
 TOKEN = os.environ.get('TOKEN')
 
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
-TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.datetime.now().astimezone().utcoffset().seconds
-      
-users = {}
-reminders = []
+TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.now().astimezone().utcoffset().seconds
+
+def updateReminders():
+    global reminders
+    reminders = db.getReminders(connection)
 
 async def remind():
     bot = Bot(TOKEN)
     global reminders
     while True:
-        reminders_new = []
         for reminder in reminders:
-            if time.time() >= reminder.time - TIMEZONE_DIFFERENCE:
+            if datetime.now().timestamp() >= reminder.remind_time.timestamp() - TIMEZONE_DIFFERENCE:
                 bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.title}</b>.", parse_mode="HTML")
-            else:
-                reminders_new.append(reminder)
-        reminders = reminders_new[:]
+                db.deleteReminder(connection, reminder.reminder_id)
+                updateReminders()
+
 
 def startCommandHandler(update: Update, context: CallbackContext):
-    if update.effective_chat.id not in users:
-        users[update.effective_chat.id] = User()
-
-    users[update.effective_chat.id].current_task = users[update.effective_chat.id].current_event = None
-    users[update.effective_chat.id].current_page = 0
+    context.user_data["current_task_id"] = context.user_data["current_event_id"] = -1
+    context.user_data["current_page"] = 0
     
     context.bot.send_message(chat_id=update.effective_chat.id, text="Приветствую!", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
 def createTask(update: Update, context: CallbackContext):
-    if update.effective_chat.id not in users:
-        users[update.effective_chat.id] = User()
-
     context.bot.send_message(chat_id=update.effective_chat.id, text="Введите название задачи.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить создание задачи")]], resize_keyboard=True))
     
     return 3
@@ -50,91 +43,83 @@ def setTitle(update: Update, context: CallbackContext):
     if update.message.text.startswith("/"):
             buttons = MAIN_MENU_BUTTONS
             context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Невозможно создать задачу с таким названием..", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
-            users[update.effective_chat.id].current_task = None
+            context.user_data["current_task_id"] = -1
             return ConversationHandler.END
 
-    # for task in users[update.effective_chat.id].tasks:
-    #     if task.title == update.message.text:
-    #         buttons = MAIN_MENU_BUTTONS
-    #         context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Задача с таким названием уже существует.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
-    #         users[update.effective_chat.id].current_task = None
-    #         return ConversationHandler.END
-
-    users[update.effective_chat.id].current_task_id += 1
-    users[update.effective_chat.id].current_task = Task(users[update.effective_chat.id].current_task_id, update.message.text)
+    context.user_data["current_task_id"] += 1
+    db.createTask(connection, update.effective_chat.id, update.message.text)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Введите описание или /skip, чтобы создать задачу без описания.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить создание задачи")]], resize_keyboard=True))
 
     return 4
 
 def setDesc(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_task.desc = update.message.text
-    users[update.effective_chat.id].tasks.append(users[update.effective_chat.id].current_task)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{users[update.effective_chat.id].current_task.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
-    users[update.effective_chat.id].current_task = None
+    db.updateTask(connection, update.effective_chat.id, context.user_data["current_task_id"], desc=update.message.text)
+    title = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"]).title
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
+    context.user_data["current_task_id"] = -1
 
     return ConversationHandler.END
 
 def skipDesc(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].tasks.append(users[update.effective_chat.id].current_task)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{users[update.effective_chat.id].current_task.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
-    users[update.effective_chat.id].current_task = None
+    title = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"]).title
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
+    context.user_data["current_task_id"] = -1
 
     return ConversationHandler.END
 
 def cancelTaskCreation(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_task = None
+    db.deleteTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
+    context.user_data["current_task_id"] = -1
     context.bot.send_message(chat_id=update.effective_chat.id, text="✅Создание задачи отменено.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
 
 def showTaskList(update: Update, context: CallbackContext):
     buttons = [[KeyboardButton("✏️Создать задачу")]]
-    page = users[update.effective_chat.id].current_page
-    for task in users[update.effective_chat.id].tasks[page * 10:page * 10 + 10]:
-        buttons.append([f"{task.id}: {task.title}"])
+    page = context.user_data["current_page"]
+    tasks = db.getTasks(connection, update.effective_chat.id)
+    for task in tasks[page * 10:page * 10 + 10]:
+        buttons.append([f"{task.task_id}: {task.title}"])
     page_buttons = []
     if page > 0:
         page_buttons.append("<")
-    if (page + 1) * 10 < len(users[update.effective_chat.id].tasks):
+    if (page + 1) * 10 < len(tasks):
         page_buttons.append(">")
     if page_buttons != []:
         buttons.append(page_buttons)
-        
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {users[update.effective_chat.id].current_page + 1}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    
+    c_page = context.user_data["current_page"] + 1
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {c_page}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
 def viewTasks(update: Update, context: CallbackContext):
-    if update.effective_chat.id not in users:
-        users[update.effective_chat.id] = User()
-
     context.bot.send_message(chat_id=update.effective_chat.id, text="📖Ваши задачи. /menu, чтобы вернуться на главную.")
     showTaskList(update, context)
     
     return 0
 
 def viewTask(update: Update, context: CallbackContext):
-    for task in users[update.effective_chat.id].tasks:
-        try:
-            if task.id == int(update.message.text.split(":")[0]):
-                users[update.effective_chat.id].current_task = task
-                buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Добавить напоминание")], [KeyboardButton("❌Удалить задачу")]]
-                text = f"<b>{'• ' + task.title}</b>"
-                if task.desc != "":
-                    text += f"\n{task.desc}"
-#                 if task.reminders != []:
-#                     text += "\n\n-----"
-#                     for reminder in task.reminders:
-#                         text += f"\n⏰Напоминание: {reminder}"
-                context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
-                return 1
-        except:
-            pass
-    
-    context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Такой задачи не существует.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
-    return ConversationHandler.END
+    try:
+        task = db.getTask(connection, update.effective_chat.id, int(update.message.text.split(":")[0]))
+        context.user_data["current_task_id"] = task.task_id
+        buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Добавить напоминание")], [KeyboardButton("❌Удалить задачу")]]
+        text = f"<b>{'• ' + task.title}</b>"
+        if task.desc != "":
+            text += f"\n{task.desc}"
+        reminders = db.getReminders(connection, update.effective_chat.id, task.task_id)
+        if reminders != []:
+            text += "\n\n-----"
+            for reminder in reminders:
+                time_text = reminder.remind_time.strftime("%d.%m.%Y %H:%M")
+                text += f"\n⏰Напоминание: {time_text}"
+        context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
+        return 1
+    except:
+        context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Такой задачи не существует.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+        return ConversationHandler.END
 
 
 def mainMenu(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_page = 0
+    context.user_data["current_page"] = 0
     context.bot.send_message(chat_id=update.effective_chat.id, text="🏠Главное меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
@@ -145,48 +130,48 @@ def createTaskReminder(update: Update, context: CallbackContext):
     return 2
 
 def deleteTask(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].tasks.pop(users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task))
-    reminders_new = []
-    global reminders
-    for reminder in reminders:
-        if reminder.task_id != users[update.effective_chat.id].current_task.id:
-            reminders_new.append(reminder)
-    reminders = reminders_new[:]
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача удалена: <b>{users[update.effective_chat.id].current_task.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
-    users[update.effective_chat.id].current_task = None
+    task = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
+    db.deleteTask(connection, update.effective_chat.id, task.task_id)
+    db.deleteReminders(connection, update.effective_chat.id, task_id=task.task_id)
+    updateReminders()
+    context.user_data["current_task_id"] = -1
+    context.user_data["current_page"] = 0
+
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача удалена: <b>{task.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     
     return ConversationHandler.END
 
 def setTaskReminder(update: Update, context: CallbackContext):
     try:
-        time = datetime.datetime(*[int(i) for i in update.message.text.split(".")])
+        time = datetime(*[int(i) for i in update.message.text.split(".")])
+        task = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
+        db.createReminder(connection, update.effective_chat.id, task.title, time, task_id=task.task_id)
+        updateReminders()
 
-        reminders.append(Reminder(update.effective_chat.id, time.timestamp(), users[update.effective_chat.id].current_task.title, users[update.effective_chat.id].current_task.id))
-
-#         users[update.effective_chat.id].tasks[users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task)].reminders.append(time)
-
-        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
-        users[update.effective_chat.id].current_task = None
+        time_text = time.strftime("%d.%m.%Y %H:%M")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
     except:
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Ошибка при добавлении напоминания. Вероятно, время введено в неверном формате.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
-        users[update.effective_chat.id].current_task = None
 
+    context.user_data["current_task_id"] = -1
+    context.user_data["current_page"] = 0
+    
     return ConversationHandler.END
 
 def cancelReminderCreation(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_task = None
+    context.user_data["current_task_id"] = -1
     context.bot.send_message(chat_id=update.effective_chat.id, text="✅Добавление напоминания отменено.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
 
 def tasksPrevPage(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_page -= 1
+    context.user_data["current_page"] -= 1
     showTaskList(update, context)
 
     return 0
 
 def tasksNextPage(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_page += 1
+    context.user_data["current_page"] += 1
     showTaskList(update, context)
 
     return 0
@@ -205,104 +190,96 @@ viewTasksConvHandler = ConversationHandler(
     fallbacks=[]
 )
 
-def createReminder(update: Update, context: CallbackContext):
-    time, text = update.message.text[8:].split()
-    reminders.append(Reminder(update.effective_chat.id, datetime.datetime(*[int(i) for i in time.split(".")]).timestamp(), text))
-
 def importCalendar(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="📁Отправьте .ics файл календаря.", reply_markup=ReplyKeyboardMarkup([["🚫Отменить импорт календаря"]], resize_keyboard=True))
 
     return 2
 
 def icsHandler(update: Update, context: CallbackContext):
-    if update.effective_chat.id not in users:
-        users[update.effective_chat.id] = User()
-
     try:
-        filename = str(update.effective_chat.id)+"_"+str(time.time())+".ics"
+        filename = str(update.effective_chat.id)+"_"+str(datetime.now().timestamp())+".ics"
         context.bot.get_file(update.message.document).download(custom_path=filename)
         
         events = getEvents(filename)
         for event in events:
-            event.start += datetime.timedelta(hours=3)
-            event.end += datetime.timedelta(hours=3)
-            start = event.start.strftime("%d.%m.%Y %H:%M")
-            if event.start.strftime("%d.%m.%Y") == event.end.strftime("%d.%m.%Y"):
-                end = event.end.strftime("%H:%M")
+            event["start"] -= timedelta(seconds=TIMEZONE_DIFFERENCE)
+            event["end"] -= timedelta(seconds=TIMEZONE_DIFFERENCE)
+            start = event["start"].strftime("%d.%m.%Y %H:%M")
+            if event["start"].strftime("%d.%m.%Y") == event["end"].strftime("%d.%m.%Y"):
+                end = event["end"].strftime("%H:%M")
             else:
-                end = event.end.strftime("%d.%m.%Y %H:%M")
-            taskname = f"{start} - {end} | {event.name}"
-            for user_event in users[update.effective_chat.id].events:
-                if user_event.title == taskname: break
-            else:
-                users[update.effective_chat.id].events.append(Task(taskname))
-                if event.start.timestamp() > time.time():
-                    reminders.append(Reminder(update.effective_chat.id, event.start.timestamp() - 3600, taskname))
+                end = event["end"].strftime("%d.%m.%Y %H:%M")
+            event_title = event["title"]
+            title = f"{start} - {end} | {event_title}"
+            db.createEvent(connection, update.effective_chat.id, title, event["start"], event["end"])
+            if event["start"].timestamp() > datetime.now().timestamp():
+                db.createReminder(connection, update.effective_chat.id, title, event["start"]-timedelta(minutes=15))
 
         os.remove(filename)
         context.bot.send_message(chat_id=update.effective_chat.id, text="✅Календарь импортирован успешно.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
-    except:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Ошибка при чтении файла календаря.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+    except Exception as e:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Ошибка при чтении файла календаря.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
 
 def showEventsList(update: Update, context: CallbackContext):
     buttons = [["📲Импортировать календарь"]]
-    page = users[update.effective_chat.id].current_page
-    for event in users[update.effective_chat.id].events[page * 10:page * 10 + 10]:
-        buttons.append([event.title])
+    page = context.user_data["current_page"]
+    events = db.getEvents(connection, update.effective_chat.id)
+    for event in events[page * 10:page * 10 + 10]:
+        buttons.append([f"{event.event_id}: {event.title}"])
     page_buttons = []
     if page > 0:
         page_buttons.append("<")
-    if (page + 1) * 10 < len(users[update.effective_chat.id].events):
+    if (page + 1) * 10 < len(events):
         page_buttons.append(">")
     if page_buttons != []:
         buttons.append(page_buttons)
         
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {users[update.effective_chat.id].current_page + 1}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    c_page = context.user_data["current_page"]
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {c_page}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
 def viewCalendar(update: Update, context: CallbackContext):
-    if update.effective_chat.id not in users:
-        users[update.effective_chat.id] = User()
-
     context.bot.send_message(chat_id=update.effective_chat.id, text="📅Календарь. /menu, чтобы вернуться на главную.")
     showEventsList(update, context)
     
     return 0
 
 def viewEvent(update: Update, context: CallbackContext):
-    for event in users[update.effective_chat.id].events:
-        if event.title == update.message.text:
-            users[update.effective_chat.id].current_event = event
-            buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("❌Удалить событие")]]
-            text = f"<b>{'• ' + event.title}</b>"
-            context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
-            return 1
-    
-    context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Такой задачи не существует.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
-    return ConversationHandler.END
+    try:
+        event = db.getEvent(connection, update.effective_chat.id, int(update.message.text.split(":")[0]))
+        context.user_data["current_event_id"] = event.event_id
+        buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("❌Удалить событие")]]
+        text = f"<b>{'• ' + event.title}</b>"
+        context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
+        return 1
+    except Exception as e:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Такого события не существует. {e}", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+        return ConversationHandler.END
 
 def deleteEvent(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].events.pop(users[update.effective_chat.id].events.index(users[update.effective_chat.id].current_event))
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Событие удалено: <b>{users[update.effective_chat.id].current_event.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
-    users[update.effective_chat.id].current_event = None
+    event = db.getEvent(connection, update.effective_chat.id, context.user_data["current_event_id"])
+    db.deleteEvent(connection, update.effective_chat.id, event.event_id)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Событие удалено: <b>{event.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
+    context.user_data["current_event_id"] = -1
+    context.user_data["current_page"] = 0
     
     return ConversationHandler.END
 
 def cancelIcsImport(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_event = None
+    context.user_data["current_event_id"] = -1
     context.bot.send_message(chat_id=update.effective_chat.id, text="✅Импорт календаря отменён.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
     return ConversationHandler.END
 
 def calendarPrevPage(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_page -= 1
+    context.user_data["current_page"] -= 1
     showEventsList(update, context)
 
     return 0
 
 def calendarNextPage(update: Update, context: CallbackContext):
-    users[update.effective_chat.id].current_page += 1
+    context.user_data["current_page"] += 1
     showEventsList(update, context)
 
     return 0
@@ -320,11 +297,16 @@ viewCalendarConvHandler = ConversationHandler(
 )
 
 def main():
-    updater = Updater(TOKEN)
+    global connection
+    connection = db.connectToDB()
+
+    global reminders
+    reminders = db.getReminders(connection)
+
+    updater = Updater(TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", startCommandHandler))
-    dispatcher.add_handler(CommandHandler("remind", createReminder))
     dispatcher.add_handler(viewTasksConvHandler)
     dispatcher.add_handler(viewCalendarConvHandler)
         

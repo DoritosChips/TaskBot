@@ -1,11 +1,10 @@
+from datetime import datetime
+
 class User:
     def __init__(self):
-        self.tasks = []
-        self.current_task = None
-        self.events = []
-        self.current_event = None
+        self.current_task_id = -1
+        self.current_event_id = -1
         self.current_page = 0
-        self.current_task_id = 0
 
 class Task:
     def __init__(self, user_id: int, task_id: int, title: str, desc = ""):
@@ -15,14 +14,15 @@ class Task:
         self.desc = desc
 
 class Reminder:
-    def __init__(self, user_id, task_id, title, remind_time):
+    def __init__(self, reminder_id: int, user_id: int, task_id: int, title: str, remind_time: datetime):
+        self.reminder_id = reminder_id
         self.user_id = user_id
         self.task_id = task_id
-        self.text = title
+        self.title = title
         self.remind_time = remind_time
 
 class Event:
-    def __init__(self, user_id, event_id, title, start, end):
+    def __init__(self, user_id: int, event_id: int, title: str, start: datetime, end: datetime):
         self.user_id = user_id
         self.event_id = event_id
         self.title = title
