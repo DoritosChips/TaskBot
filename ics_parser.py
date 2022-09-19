@@ -1,9 +1,9 @@
 from icalendar import Calendar
 
 class Event:
-    def __init__(self, user_id, task_id, title, start, end):
+    def __init__(self, user_id, event_id, title, start, end):
         self.user_id = user_id
-        self.task_id = task_id
+        self.event_id = event_id
         self.title = title
         self.start = start
         self.end = end

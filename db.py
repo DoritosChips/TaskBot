@@ -2,6 +2,7 @@ import pymysql
 from config import *
 from main import Task, Reminder
 from ics_parser import Event
+from datetime import datetime
 
 def connectToDB():
     connection = pymysql.connect(
@@ -29,7 +30,7 @@ def getEvents(connection: pymysql.connections.Connection, user_id:int) -> list[E
     cursor.execute(select_events)
     events = list()
     for event in cursor.fetchall():
-        events.append(Event(event["user_id"], event["task_id"], event["title"], event["start_time"], event["end_time"]))
+        events.append(Event(event["user_id"], event["event_id"], event["title"], event["start_time"], event["end_time"]))
     return events
 
 def getReminders(connection: pymysql.connections.Connection, task_id=None) -> list[Reminder]:
@@ -50,10 +51,27 @@ def createTask(connection: pymysql.connections.Connection, user_id: int, task_id
     cursor.execute(create_task)
     connection.commit()
 
+def createEvent(connection: pymysql.connections.Connection, user_id: int, event_id: int, title: str, start: datetime, end: datetime):
+    cursor = connection.cursor()
+    create_event = f"INSERT INTO `events` (user_id, event_id, title, start_time, end_time) VALUES ({user_id}, {event_id}, '{title}', '{start}', '{end}')"
+    cursor.execute(create_event)
+    connection.commit()
+
+def createReminder(connection: pymysql.connections.Connection, user_id: int, title: str, remind_time: datetime, task_id=-1, event_id=-1):
+    cursor = connection.cursor()
+    create_remind = f"INSERT INTO `reminders` (user_id, task_id, event_id, title, remind_time) VALUES ({user_id}, {task_id}, {event_id}, '{title}','{remind_time}')"
+    cursor.execute(create_remind)
+    connection.commit()
+
+def deleteTask(connection: pymysql.connections.Connection, user_id: int, task_id: int):
+    cursor = connection.cursor()
+    delete_task = f"DELETE FROM `tasks` WHERE user_id = {user_id} and task_id = {task_id}"
+    cursor.execute(delete_task)
+    connection.commit()
+
 def main():
     connection = connectToDB()
-    createTask(connection, 4, 1, "safnsadognsdag", desc="aSDOKASfop")
-    print(getTasks(connection, 4))
+    deleteTask(connection, 4, 1)
 
 if __name__ == "__main__":
     main()
