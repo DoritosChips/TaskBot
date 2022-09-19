@@ -12,9 +12,6 @@ TOKEN = os.environ.get('TOKEN')
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
 TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.datetime.now().astimezone().utcoffset().seconds
 
-updater = Updater(TOKEN)
-dispatcher = updater.dispatcher
-
 class User:
     def __init__(self):
         self.tasks = []
@@ -25,18 +22,20 @@ class User:
         self.current_task_id = 0
 
 class Task:
-    def __init__(self, id: int, title: str):
-        self.id = id
+    def __init__(self, user_id: int, task_id: int, title: str, desc = ""):
+        self.user_id = user_id
+        self.task_id = task_id
         self.title = title
-        self.desc = ""
-        self.reminders = []
+        self.desc = desc
 
 class Reminder:
-    def __init__(self, user_id, time, text, task_id=0):
+    def __init__(self, user_id, task_id, title, remind_time):
         self.user_id = user_id
-        self.time = time
-        self.text = text
         self.task_id = task_id
+        self.text = title
+        self.remind_time = remind_time
+        
+        
 
 users = {}
 reminders = []
@@ -48,7 +47,7 @@ async def remind():
         reminders_new = []
         for reminder in reminders:
             if time.time() >= reminder.time - TIMEZONE_DIFFERENCE:
-                bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.text}</b>.", parse_mode="HTML")
+                bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.title}</b>.", parse_mode="HTML")
             else:
                 reminders_new.append(reminder)
         reminders = reminders_new[:]
@@ -144,10 +143,10 @@ def viewTask(update: Update, context: CallbackContext):
                 text = f"<b>{'• ' + task.title}</b>"
                 if task.desc != "":
                     text += f"\n{task.desc}"
-                if task.reminders != []:
-                    text += "\n\n-----"
-                    for reminder in task.reminders:
-                        text += f"\n⏰Напоминание: {reminder}"
+#                 if task.reminders != []:
+#                     text += "\n\n-----"
+#                     for reminder in task.reminders:
+#                         text += f"\n⏰Напоминание: {reminder}"
                 context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
                 return 1
         except:
@@ -187,7 +186,7 @@ def setTaskReminder(update: Update, context: CallbackContext):
 
         reminders.append(Reminder(update.effective_chat.id, time.timestamp(), users[update.effective_chat.id].current_task.title, users[update.effective_chat.id].current_task.id))
 
-        users[update.effective_chat.id].tasks[users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task)].reminders.append(time)
+#         users[update.effective_chat.id].tasks[users[update.effective_chat.id].tasks.index(users[update.effective_chat.id].current_task)].reminders.append(time)
 
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
         users[update.effective_chat.id].current_task = None
@@ -343,10 +342,17 @@ viewCalendarConvHandler = ConversationHandler(
     fallbacks=[]
 )
 
-dispatcher.add_handler(CommandHandler("start", startCommandHandler))
-dispatcher.add_handler(CommandHandler("remind", createReminder))
-dispatcher.add_handler(viewTasksConvHandler)
-dispatcher.add_handler(viewCalendarConvHandler)
+def main():
+    updater = Updater(TOKEN)
+    dispatcher = updater.dispatcher
 
-updater.start_polling()
-asyncio.run(remind())
+    dispatcher.add_handler(CommandHandler("start", startCommandHandler))
+    dispatcher.add_handler(CommandHandler("remind", createReminder))
+    dispatcher.add_handler(viewTasksConvHandler)
+    dispatcher.add_handler(viewCalendarConvHandler)
+        
+    updater.start_polling()
+    asyncio.run(remind())
+
+if __name__ == "__main__":
+    main()
