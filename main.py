@@ -260,6 +260,7 @@ def viewEvent(update: Update, context: CallbackContext):
 def deleteEvent(update: Update, context: CallbackContext):
     event = db.getEvent(connection, update.effective_chat.id, context.user_data["current_event_id"])
     db.deleteEvent(connection, update.effective_chat.id, event.event_id)
+    db.deleteReminders(connection, update.effective_chat.id, event_id=event.event_id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Событие удалено: <b>{event.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     context.user_data["current_event_id"] = -1
     context.user_data["current_page"] = 0
