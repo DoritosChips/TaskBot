@@ -143,8 +143,8 @@ class DataBase:
             else:
                 break
 
-    def updateTask(connection: pymysql.connections.Connection, user_id: int, task_id: int, title: str = None, desc: str = None) -> None:
-        cursor = connection.cursor()
+    def updateTask(user_id: int, task_id: int, title: str = None, desc: str = None) -> None:
+        cursor = self.connection.cursor()
         if title:
             cursor.execute(f"UPDATE tasks SET task_title='{title}' WHERE user_id={user_id} and task_id={task_id}")
         if desc:
