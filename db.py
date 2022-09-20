@@ -100,7 +100,7 @@ class DataBase:
             cursor.execute(f"SELECT EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})")
             if cursor.fetchall()[0][f"EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})"]:
                 cursor.execute(f"UPDATE tasks SET task_id={current_task_id-1} WHERE user_id={user_id} and task_id={current_task_id}")
-                selfconnection.commit()
+                self.connection.commit()
                 current_task_id += 1
             else:
                 break
