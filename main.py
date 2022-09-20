@@ -6,7 +6,7 @@ from datetime import *
 from ics_parser import *
 from classes import *
 import os
-import db
+from db import DataBase
 
 TOKEN = os.environ.get('TOKEN')
 
@@ -15,7 +15,7 @@ TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.now().astimezone().utcoffset().seconds
 
 def updateReminders():
     global reminders
-    reminders = db.getReminders(connection)
+    reminders = db.getReminders()
 
 async def remind():
     bot = Bot(TOKEN)
@@ -24,7 +24,7 @@ async def remind():
         for reminder in reminders:
             if datetime.now().timestamp() >= reminder.remind_time.timestamp() - TIMEZONE_DIFFERENCE:
                 bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.title}</b>.", parse_mode="HTML")
-                db.deleteReminder(connection, reminder.reminder_id)
+                db.deleteReminder(reminder.reminder_id)
                 updateReminders()
 
 
@@ -47,28 +47,28 @@ def setTitle(update: Update, context: CallbackContext):
             return ConversationHandler.END
 
     context.user_data["current_task_id"] += 1
-    db.createTask(connection, update.effective_chat.id, update.message.text)
+    db.createTask(update.effective_chat.id, update.message.text)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Введите описание или /skip, чтобы создать задачу без описания.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить создание задачи")]], resize_keyboard=True))
 
     return 4
 
 def setDesc(update: Update, context: CallbackContext):
-    db.updateTask(connection, update.effective_chat.id, context.user_data["current_task_id"], desc=update.message.text)
-    title = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"]).title
+    db.updateTask(update.effective_chat.id, context.user_data["current_task_id"], desc=update.message.text)
+    title = db.getTask(update.effective_chat.id, context.user_data["current_task_id"]).title
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     context.user_data["current_task_id"] = -1
 
     return ConversationHandler.END
 
 def skipDesc(update: Update, context: CallbackContext):
-    title = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"]).title
+    title = db.getTask(update.effective_chat.id, context.user_data["current_task_id"]).title
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача создана: <b>{title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     context.user_data["current_task_id"] = -1
 
     return ConversationHandler.END
 
 def cancelTaskCreation(update: Update, context: CallbackContext):
-    db.deleteTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
+    db.deleteTask(update.effective_chat.id, context.user_data["current_task_id"])
     context.user_data["current_task_id"] = -1
     context.bot.send_message(chat_id=update.effective_chat.id, text="✅Создание задачи отменено.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
@@ -77,7 +77,7 @@ def cancelTaskCreation(update: Update, context: CallbackContext):
 def showTaskList(update: Update, context: CallbackContext):
     buttons = [[KeyboardButton("✏️Создать задачу")]]
     page = context.user_data["current_page"]
-    tasks = db.getTasks(connection, update.effective_chat.id)
+    tasks = db.getTasks(update.effective_chat.id)
     for task in tasks[page * 10:page * 10 + 10]:
         buttons.append([f"{task.task_id}: {task.title}"])
     page_buttons = []
@@ -99,13 +99,13 @@ def viewTasks(update: Update, context: CallbackContext):
 
 def viewTask(update: Update, context: CallbackContext):
     try:
-        task = db.getTask(connection, update.effective_chat.id, int(update.message.text.split(":")[0]))
+        task = db.getTask(update.effective_chat.id, int(update.message.text.split(":")[0]))
         context.user_data["current_task_id"] = task.task_id
         buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Добавить напоминание")], [KeyboardButton("❌Удалить задачу")]]
         text = f"<b>{'• ' + task.title}</b>"
         if task.desc != "":
             text += f"\n{task.desc}"
-        reminders = db.getReminders(connection, update.effective_chat.id, task.task_id)
+        reminders = db.getReminders(update.effective_chat.id, task.task_id)
         if reminders != []:
             text += "\n\n-----"
             for reminder in reminders:
@@ -130,9 +130,9 @@ def createTaskReminder(update: Update, context: CallbackContext):
     return 2
 
 def deleteTask(update: Update, context: CallbackContext):
-    task = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
-    db.deleteTask(connection, update.effective_chat.id, task.task_id)
-    db.deleteReminders(connection, update.effective_chat.id, task_id=task.task_id)
+    task = db.getTask(update.effective_chat.id, context.user_data["current_task_id"])
+    db.deleteTask(update.effective_chat.id, task.task_id)
+    db.deleteReminders(update.effective_chat.id, task_id=task.task_id)
     updateReminders()
     context.user_data["current_task_id"] = -1
     context.user_data["current_page"] = 0
@@ -144,8 +144,8 @@ def deleteTask(update: Update, context: CallbackContext):
 def setTaskReminder(update: Update, context: CallbackContext):
     try:
         time = datetime(*[int(i) for i in update.message.text.split(".")])
-        task = db.getTask(connection, update.effective_chat.id, context.user_data["current_task_id"])
-        db.createReminder(connection, update.effective_chat.id, task.title, time, task_id=task.task_id)
+        task = db.getTask(update.effective_chat.id, context.user_data["current_task_id"])
+        db.createReminder(update.effective_chat.id, task.title, time, task_id=task.task_id)
         updateReminders()
 
         time_text = time.strftime("%d.%m.%Y %H:%M")
@@ -211,9 +211,9 @@ def icsHandler(update: Update, context: CallbackContext):
                 end = event["end"].strftime("%d.%m.%Y %H:%M")
             event_title = event["title"]
             title = f"{start} - {end} | {event_title}"
-            db.createEvent(connection, update.effective_chat.id, title, event["start"], event["end"])
+            db.createEvent(update.effective_chat.id, title, event["start"], event["end"])
             if event["start"].timestamp() > datetime.now().timestamp():
-                db.createReminder(connection, update.effective_chat.id, title, event["start"]-timedelta(minutes=15))
+                db.createReminder(update.effective_chat.id, title, event["start"]-timedelta(minutes=15))
 
         os.remove(filename)
         context.bot.send_message(chat_id=update.effective_chat.id, text="✅Календарь импортирован успешно.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
@@ -225,7 +225,7 @@ def icsHandler(update: Update, context: CallbackContext):
 def showEventsList(update: Update, context: CallbackContext):
     buttons = [["📲Импортировать календарь"]]
     page = context.user_data["current_page"]
-    events = db.getEvents(connection, update.effective_chat.id)
+    events = db.getEvents(update.effective_chat.id)
     for event in events[page * 10:page * 10 + 10]:
         buttons.append([f"{event.event_id}: {event.title}"])
     page_buttons = []
@@ -247,7 +247,7 @@ def viewCalendar(update: Update, context: CallbackContext):
 
 def viewEvent(update: Update, context: CallbackContext):
     try:
-        event = db.getEvent(connection, update.effective_chat.id, int(update.message.text.split(":")[0]))
+        event = db.getEvent(update.effective_chat.id, int(update.message.text.split(":")[0]))
         context.user_data["current_event_id"] = event.event_id
         buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("❌Удалить событие")]]
         text = f"<b>{'• ' + event.title}</b>"
@@ -258,9 +258,9 @@ def viewEvent(update: Update, context: CallbackContext):
         return ConversationHandler.END
 
 def deleteEvent(update: Update, context: CallbackContext):
-    event = db.getEvent(connection, update.effective_chat.id, context.user_data["current_event_id"])
-    db.deleteEvent(connection, update.effective_chat.id, event.event_id)
-    db.deleteReminders(connection, update.effective_chat.id, event_id=event.event_id)
+    event = db.getEvent(update.effective_chat.id, context.user_data["current_event_id"])
+    db.deleteEvent(update.effective_chat.id, event.event_id)
+    db.deleteReminders(update.effective_chat.id, event_id=event.event_id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Событие удалено: <b>{event.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
     context.user_data["current_event_id"] = -1
     context.user_data["current_page"] = 0
@@ -298,11 +298,12 @@ viewCalendarConvHandler = ConversationHandler(
 )
 
 def main():
-    global connection
-    connection = db.connectToDB()
+    global db
+    db = DataBase()
+    db.connect()
 
     global reminders
-    reminders = db.getReminders(connection)
+    reminders = db.getReminders()
 
     updater = Updater(TOKEN, use_context=True)
     dispatcher = updater.dispatcher
