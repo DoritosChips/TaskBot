@@ -319,7 +319,7 @@ def calendarNextPage(update: Update, context: CallbackContext):
     return 0
 
 def handlePolySchedule(update: Update, context: CallbackContext):
-    buttons = [["🏠На главную"], ["📅Расписание на сегодня"], ["📆Расписание на другой день"], ["👥Изменить номер группы"]]
+    buttons = [["🏠На главную"], ["📅Расписание на сегодня"], ["📆Расписание на другой день"], ["👥Ввести номер группы"]]
     context.bot.send_message(chat_id=update.effective_chat.id, text="🎓Расписание Политеха.", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
     return 3
@@ -404,7 +404,7 @@ viewCalendarConvHandler = ConversationHandler(
         0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("📲Импортировать календарь"), importCalendar), MessageHandler(Filters.regex("🎓Расписание Политеха"), handlePolySchedule), MessageHandler(Filters.regex("<"), calendarPrevPage), MessageHandler(Filters.regex(">"), calendarNextPage), MessageHandler(Filters.text, viewEvent)],
         1: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("❌Удалить событие"), deleteEvent)],
         2: [MessageHandler(Filters.regex("🚫Отменить импорт календаря"), cancelIcsImport), MessageHandler(Filters.document, icsHandler)],
-        3: [MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("👥Изменить номер группы"), changePolyGroup), MessageHandler(Filters.regex("📅Расписание на сегодня"), polyScheduleToday), MessageHandler(Filters.regex("📆Расписание на другой день"), polyScheduleDate)],
+        3: [MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("👥Ввести номер группы"), changePolyGroup), MessageHandler(Filters.regex("📅Расписание на сегодня"), polyScheduleToday), MessageHandler(Filters.regex("📆Расписание на другой день"), polyScheduleDate)],
         4: [MessageHandler(Filters.text, setPolyGroup)],
         5: [MessageHandler(Filters.text, showPolyScheduleByDate)]
     },
