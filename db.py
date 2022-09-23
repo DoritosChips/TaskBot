@@ -10,7 +10,7 @@ class DataBase:
             user = user,
             password = password,
             database = db_name,
-            cursorclass = pymysql.cursors.DictCursor
+            cursorclass = pymysql.cursors.DictCursor,
         )
 
     def getTasks(self, user_id: int) -> list[Task]:
@@ -57,6 +57,13 @@ class DataBase:
             reminders.append(Reminder(reminder["reminder_id"], reminder["user_id"], reminder["task_id"], reminder["title"], reminder["remind_time"]))
         return reminders
 
+    def getReminder(self, user_id: int, reminder_id: int):
+        cursor = self.connection.cursor()
+        cursor.execute(f"SELECT * FROM reminders WHERE user_id={user_id} and reminder_id={reminder_id}")
+        reminder = cursor.fetchall()[0]
+        reminder = Reminder(reminder["reminder_id"], reminder["user_id"], reminder["task_id"], reminder["title"], reminder["remind_time"])
+        return reminder
+
     def createTask(self, user_id: int, title: str, desc="") -> None:
         cursor = self.connection.cursor()
         current_task_id = 0
@@ -83,8 +90,8 @@ class DataBase:
         cursor = self.connection.cursor()
         current_reminder_id = 0
         while True:
-            cursor.execute(f"SELECT EXISTS(SELECT * FROM reminders WHERE reminder_id={current_reminder_id})")
-            if not cursor.fetchall()[0][f"EXISTS(SELECT * FROM reminders WHERE reminder_id={current_reminder_id})"]:
+            cursor.execute(f"SELECT EXISTS(SELECT * FROM reminders WHERE user_id={user_id} and reminder_id={current_reminder_id})")
+            if not cursor.fetchall()[0][f"EXISTS(SELECT * FROM reminders WHERE user_id={user_id} and reminder_id={current_reminder_id})"]:
                 cursor.execute(f"INSERT INTO reminders (reminder_id, user_id, task_id, event_id, title, remind_time) VALUES ({current_reminder_id}, {user_id}, {task_id}, {event_id}, '{title}','{remind_time}')")
                 self.connection.commit()
                 break
@@ -129,15 +136,15 @@ class DataBase:
         cursor.execute(delete_reminders)
         self.connection.commit()
 
-    def deleteReminder(self, reminder_id: int) -> None:
+    def deleteReminder(self, user_id: int, reminder_id: int) -> None:
         cursor = self.connection.cursor()
         cursor.execute(f"DELETE FROM reminders WHERE reminder_id = {reminder_id}")
         self.connection.commit()
         current_reminder_id = reminder_id + 1
         while True:
-            cursor.execute(f"SELECT EXISTS(SELECT * FROM reminders WHERE reminder_id={current_reminder_id})")
-            if cursor.fetchall()[0][f"EXISTS(SELECT * FROM reminders WHERE reminder_id={current_reminder_id})"]:
-                cursor.execute(f"UPDATE reminders SET reminder_id={current_reminder_id-1} WHERE reminder_id={current_reminder_id}")
+            cursor.execute(f"SELECT EXISTS(SELECT * FROM reminders WHERE user_id={user_id} and reminder_id={current_reminder_id})")
+            if cursor.fetchall()[0][f"EXISTS(SELECT * FROM reminders WHERE user_id={user_id} and reminder_id={current_reminder_id})"]:
+                cursor.execute(f"UPDATE reminders SET reminder_id={current_reminder_id-1} WHERE user_id={user_id} and reminder_id={current_reminder_id}")
                 self.connection.commit()
                 current_reminder_id += 1
             else:
