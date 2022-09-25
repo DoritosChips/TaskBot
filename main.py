@@ -123,7 +123,7 @@ def mainMenu(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 def createTaskReminder(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="🕰Введите время (год.месяц.день.час.минута).", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить добавление напоминания")]], resize_keyboard=True))
+    context.bot.send_message(chat_id=update.effective_chat.id, text="🕰Введите время (ДД.ММ.ГГГГ чч.мм).", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить добавление напоминания")]], resize_keyboard=True))
 
     return 2
 
@@ -141,12 +141,13 @@ def deleteTask(update: Update, context: CallbackContext):
 
 def setTaskReminder(update: Update, context: CallbackContext):
     try:
-        time = datetime(*[int(i) for i in update.message.text.split(".")])
+        date, time = update.message.text.split()
+        dt = datetime(*list(map(int, date.split(".")))[::-1] + list(map(int, time.split("."))))
         task = db.getTask(update.effective_chat.id, context.user_data["current_task_id"])
-        db.createReminder(update.effective_chat.id, task.title, time, task_id=task.task_id)
+        db.createReminder(update.effective_chat.id, task.title, dt, task_id=task.task_id)
         updateReminders()
 
-        time_text = time.strftime("%d.%m.%Y %H:%M")
+        time_text = dt.strftime("%d.%m.%Y %H:%M")
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
     except:
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Ошибка при добавлении напоминания. Вероятно, время введено в неверном формате.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
@@ -377,7 +378,7 @@ def polyScheduleDate(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Группа не задана.", parse_mode="HTML", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
         return ConversationHandler.END
 
-    context.bot.send_message(chat_id=update.effective_chat.id, text="📅Введите дату (год.месяц.день).", reply_markup=ReplyKeyboardRemove())
+    context.bot.send_message(chat_id=update.effective_chat.id, text="📅Введите дату (ДД.ММ.ГГГГ).", reply_markup=ReplyKeyboardRemove())
 
     return 5
 
@@ -388,7 +389,7 @@ def changePolyGroup(update: Update, context: CallbackContext):
 
 def showPolyScheduleByDate(update: Update, context: CallbackContext):
     try:
-        dt = datetime(*[int(i) for i in update.message.text.split(".")])
+        dt = datetime(*[int(i) for i in update.message.text.split(".")][::-1])
         lessons = getLessons(groups[context.user_data["polygroup"]].id, dt)
         text = getScheduleText(lessons, dt)
         context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="HTML", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
