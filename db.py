@@ -138,7 +138,7 @@ class DataBase:
 
     def deleteReminder(self, user_id: int, reminder_id: int) -> None:
         cursor = self.connection.cursor()
-        cursor.execute(f"DELETE FROM reminders WHERE reminder_id = {reminder_id}")
+        cursor.execute(f"DELETE FROM reminders WHERE user_id = {user_id} and reminder_id = {reminder_id}")
         self.connection.commit()
         current_reminder_id = reminder_id + 1
         while True:

@@ -94,6 +94,8 @@ def showTaskList(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {c_page}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
 def viewTasks(update: Update, context: CallbackContext):
+    context.user_data["current_page"] = 0
+
     context.bot.send_message(chat_id=update.effective_chat.id, text="📖Ваши задачи. /menu, чтобы вернуться на главную.")
     showTaskList(update, context)
     
@@ -203,6 +205,7 @@ def deleteReminder(update: Update, context: CallbackContext):
     reminder = db.getReminder(update.effective_chat.id, context.user_data["current_reminder_id"])
     context.user_data["current_reminder_id"] = -1
     db.deleteReminder(update.effective_chat.id, reminder.reminder_id)
+    updateReminders()
     time_text = reminder.remind_time.strftime("%d.%m.%Y %H:%M")
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание удалено: <b>{time_text} | {reminder.title}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
 
@@ -274,6 +277,8 @@ def showEventsList(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"📄Страница {c_page + 1}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
 def viewCalendar(update: Update, context: CallbackContext):
+    context.user_data["current_page"] = 0
+
     context.bot.send_message(chat_id=update.effective_chat.id, text="📅Календарь. /menu, чтобы вернуться на главную.")
     showEventsList(update, context)
     
