@@ -157,6 +157,7 @@ class DataBase:
             if desc:
                 cursor.execute(f"UPDATE tasks SET task_desc='{desc}' WHERE user_id={user_id} and task_id={task_id}")
             self.connection.commit()
+<<<<<<< HEAD
 
     def getNextTaskIndex(self, user_id: int) -> int:
         with self.connection.cursor() as cursor:
@@ -167,6 +168,8 @@ class DataBase:
                     return current_task_id
                 current_task_id += 1
 
+=======
+>>>>>>> 3fffc210e06d389d598af3f7f86bc22c1dd74b2f
 
 def main():
     db = DataBase()

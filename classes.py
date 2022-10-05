@@ -28,3 +28,37 @@ class Event:
         self.title = title
         self.start = start
         self.end = end
+
+class Teacher:
+    def __init__(self, id: int, full_name: str, first_name: str, middle_name:str, last_name:str) -> None:
+        self.id = id
+        self.full_name = full_name
+        self.first_name = first_name
+        self.middle_name = middle_name
+        self.last_name = last_name
+
+class LessonType:
+    def __init__(self, id: int, name: str) -> None:
+        self.id = id
+        self.name = name
+
+class Group:
+    def __init__(self, id: int, name: str) -> None:
+        self.id = id
+        self.name = name
+
+class Classroom:
+    def __init__(self, name: str, building: str) -> None:
+        self.name = name
+        self.building = building
+
+class Lesson:
+    def __init__(self, time_start: datetime, time_end: datetime, subject: str, type: LessonType, groups: list[Group], teachers: list[Teacher], classrooms: list[Classroom], additional_info: str) -> None:
+        self.time_start = time_start
+        self.time_end = time_end
+        self.subject = subject
+        self.type = type
+        self.groups = groups
+        self.teachers = teachers
+        self.classrooms = classrooms
+        self.additional_info = additional_info
