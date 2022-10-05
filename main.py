@@ -46,7 +46,7 @@ def setTitle(update: Update, context: CallbackContext):
             context.user_data["current_task_id"] = -1
             return ConversationHandler.END
 
-    context.user_data["current_task_id"] += 1
+    context.user_data["current_task_id"] += db.getNextTaskIndex(update.effective_chat.id)
     db.createTask(update.effective_chat.id, update.message.text)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Введите описание или /skip, чтобы создать задачу без описания.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🚫Отменить создание задачи")]], resize_keyboard=True))
 
