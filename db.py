@@ -19,14 +19,14 @@ class DataBase:
             cursor.execute(select_tasks)
             tasks = list()
             for task in cursor.fetchall():
-                tasks.append(Task(task["user_id"], task["task_id"], task["task_title"],desc=task["task_desc"]))
+                tasks.append(Task(task["user_id"], task["task_id"], task["task_title"], desc=task["task_desc"], delTime=task["task_deltime"]))
             return tasks
 
     def getTask(self, user_id: int, task_id: int) -> Task:
         with self.connection.cursor() as cursor:
             cursor.execute(f"SELECT * FROM tasks WHERE user_id = {user_id} and task_id = {task_id}")
             task = cursor.fetchall()[0]
-            task = Task(task["user_id"], task["task_id"], task["task_title"],desc=task["task_desc"])
+            task = Task(task["user_id"], task["task_id"], task["task_title"], desc=task["task_desc"], delTime=task["task_deltime"])
             return task
 
     def getEvents(self, user_id:int) -> list[Event]:
@@ -150,28 +150,29 @@ class DataBase:
                 else:
                     break
 
-    def updateTask(self, user_id: int, task_id: int, title: str = None, desc: str = None) -> None:
+    def updateTask(self, user_id: int, task_id: int, title: str = None, desc: str = None, delTime: datetime = None) -> None:
         with self.connection.cursor() as cursor:
             if title:
                 cursor.execute(f"UPDATE tasks SET task_title='{title}' WHERE user_id={user_id} and task_id={task_id}")
             if desc:
                 cursor.execute(f"UPDATE tasks SET task_desc='{desc}' WHERE user_id={user_id} and task_id={task_id}")
+            if delTime:
+                cursor.execute(f"UPDATE tasks SET task_deltime='{delTime}' WHERE user_id={user_id} and task_id={task_id}")
             self.connection.commit()
 
-    def getNextTaskIndex(self, user_id: int) -> int:
+    def getAutoDeleteTasks(self):
         with self.connection.cursor() as cursor:
-            current_task_id = 0
-            while True:
-                cursor.execute(f"SELECT EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})")
-                if not cursor.fetchall()[0][f"EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})"]:
-                    return current_task_id
-                current_task_id += 1
-
+            select_tasks = f"SELECT * FROM tasks WHERE task_deltime IS NOT NULL"
+            cursor.execute(select_tasks)
+            tasks = list()
+            for task in cursor.fetchall():
+                tasks.append(Task(task["user_id"], task["task_id"], task["task_title"], desc=task["task_desc"], delTime=task["task_deltime"]))
+            return tasks
 
 def main():
     db = DataBase()
     db.connect()
-    db.deleteTask(296691655, 0)
+    db.getAutoDeleteTasks()
 
 if __name__ == "__main__":
     main()

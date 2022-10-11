@@ -7,11 +7,12 @@ class User:
         self.current_page = 0
 
 class Task:
-    def __init__(self, user_id: int, task_id: int, title: str, desc = ""):
+    def __init__(self, user_id: int, task_id: int, title: str, desc="", delTime:datetime=None):
         self.user_id = user_id
         self.task_id = task_id
         self.title = title
         self.desc = desc
+        self.delTime = delTime
 
 class Reminder:
     def __init__(self, reminder_id: int, user_id: int, task_id: int, title: str, remind_time: datetime):

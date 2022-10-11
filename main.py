@@ -18,6 +18,10 @@ def updateReminders():
     global reminders
     reminders = db.getReminders()
 
+def updateAutoDelTasks():
+    global autoDelTasks
+    autoDelTasks = db.getAutoDeleteTasks()
+
 async def remind():
     bot = Bot(TOKEN)
     global reminders
@@ -26,6 +30,12 @@ async def remind():
             if datetime.now().timestamp() >= reminder.remind_time.timestamp() - TIMEZONE_DIFFERENCE:
                 bot.sendMessage(chat_id=reminder.user_id, text=f"⏰Напоминание: <b>{reminder.title}</b>.", parse_mode="HTML")
                 db.deleteReminder(reminder.user_id, reminder.reminder_id)
+                updateReminders()
+        for task in autoDelTasks:
+            if datetime.now().timestamp() >= task.delTime.timestamp() - TIMEZONE_DIFFERENCE:
+                db.deleteTask(task.user_id, task.task_id)
+                db.deleteReminders(task.user_id, task_id=task.task_id)
+                updateAutoDelTasks()
                 updateReminders()
 
 
@@ -106,13 +116,18 @@ def viewTask(update: Update, context: CallbackContext):
         task = db.getTask(update.effective_chat.id, int(update.message.text.split(":")[0]))
         context.user_data["current_task_id"] = task.task_id
         buttons = [[KeyboardButton("🏠На главную")], [KeyboardButton("⏰Напоминания")], [KeyboardButton("❌Удалить задачу")]]
-        text = f"<b>{'• ' + task.title}</b>"
+        text = f"<b>{'📝' + task.title}</b>"
         if task.desc != "":
             text += f"\n{task.desc}"
+        if task.delTime:
+            time_text = task.delTime.strftime("%d.%m.%Y %H:%M")
+            text += f"\n\nЗадача будет удалена <b>{time_text}</b>"
         context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True), parse_mode="HTML")
+        
         return 1
     except:
         context.bot.send_message(chat_id=update.effective_chat.id, text="⛔️Такой задачи не существует.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+        
         return ConversationHandler.END
 
 
@@ -192,7 +207,7 @@ def viewReminder(update: Update, context: CallbackContext):
         context.user_data["current_reminder_id"] = int(update.message.text.split(":")[0])
         reminder = db.getReminder(update.effective_chat.id, context.user_data["current_reminder_id"])
         time_text = reminder.remind_time.strftime("%d.%m.%Y %H:%M")
-        buttons=[[KeyboardButton("🏠На главную")], [KeyboardButton("❌Удалить напоминание")]]
+        buttons=[[KeyboardButton("🏠На главную")], [KeyboardButton("🗑Удалить задачу после напоминания")], [KeyboardButton("❌Удалить напоминание")]]
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⏰{time_text}", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
 
         return 6
@@ -211,6 +226,17 @@ def deleteReminder(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def autoDeleteTask(update: Update, context: CallbackContext):
+    reminder = db.getReminder(update.effective_chat.id, context.user_data["current_reminder_id"])
+    task = db.getTask(update.effective_chat.id, context.user_data["current_task_id"])
+    time_text = reminder.remind_time.strftime("%d.%m.%Y %H:%M")
+    db.updateTask(update.effective_chat.id, task.task_id, delTime=reminder.remind_time)
+    updateAutoDelTasks()
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Задача <b>{task.title}</b> будет удалена <b>{time_text}</b>.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True), parse_mode="HTML")
+
+    return ConversationHandler.END
+
+
 viewTasksConvHandler = ConversationHandler(
     entry_points=[MessageHandler(Filters.regex("📝Мои задачи"), viewTasks)],
 
@@ -221,7 +247,7 @@ viewTasksConvHandler = ConversationHandler(
         3: [MessageHandler(Filters.regex("🚫Отменить создание задачи"), cancelTaskCreation), MessageHandler(Filters.text, setTitle)],
         4: [CommandHandler("skip", skipDesc), MessageHandler(Filters.regex("🚫Отменить создание задачи"), cancelTaskCreation), MessageHandler(Filters.text, setDesc)],
         5: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("⏰Добавить напоминание"), createTaskReminder), MessageHandler(Filters.text, viewReminder)],
-        6: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("❌Удалить напоминание"), deleteReminder)]
+        6: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🗑Удалить задачу после напоминания"), autoDeleteTask), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("❌Удалить напоминание"), deleteReminder)]
     },
 
     fallbacks=[]
@@ -425,6 +451,8 @@ def main():
 
     global reminders
     reminders = db.getReminders()
+    global autoDelTasks
+    autoDelTasks = db.getAutoDeleteTasks()
 
     global groups
     groups = getGroups(json.load(open("groups.json")))
