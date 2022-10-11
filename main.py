@@ -25,6 +25,7 @@ def updateAutoDelTasks():
 async def remind():
     bot = Bot(TOKEN)
     global reminders
+    global autoDelTasks
     while True:
         for reminder in reminders:
             if datetime.now().timestamp() >= reminder.remind_time.timestamp() - TIMEZONE_DIFFERENCE:
