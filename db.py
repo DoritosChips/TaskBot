@@ -160,7 +160,16 @@ class DataBase:
                 cursor.execute(f"UPDATE tasks SET task_deltime='{delTime}' WHERE user_id={user_id} and task_id={task_id}")
             self.connection.commit()
 
-    def getAutoDeleteTasks(self):
+    def getNextTaskIndex(self, user_id: int) -> int:
+        with self.connection.cursor() as cursor:
+            current_task_id = 0
+            while True:
+                cursor.execute(f"SELECT EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})")
+                if not cursor.fetchall()[0][f"EXISTS(SELECT * FROM tasks WHERE user_id={user_id} and task_id={current_task_id})"]:
+                    return current_task_id
+                current_task_id += 1
+
+    def getAutoDeleteTasks(self) -> list[Task]:
         with self.connection.cursor() as cursor:
             select_tasks = f"SELECT * FROM tasks WHERE task_deltime IS NOT NULL"
             cursor.execute(select_tasks)
