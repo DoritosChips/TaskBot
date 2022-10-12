@@ -34,8 +34,12 @@ async def remind():
                 updateReminders()
         for task in autoDelTasks:
             if datetime.now().timestamp() >= task.delTime.timestamp() - TIMEZONE_DIFFERENCE:
-                db.deleteTask(task.user_id, task.task_id)
+                for rem in db.getReminders(task.user_id, task.task_id):
+                    if datetime.now().timestamp() >= rem.remind_time.timestamp() - TIMEZONE_DIFFERENCE:
+                        bot.sendMessage(chat_id=rem.user_id, text=f"⏰Напоминание: <b>{rem.title}</b>.", parse_mode="HTML")
+                        db.deleteReminder(rem.user_id, rem.reminder_id)
                 db.deleteReminders(task.user_id, task_id=task.task_id)
+                db.deleteTask(task.user_id, task.task_id)
                 updateAutoDelTasks()
                 updateReminders()
 
