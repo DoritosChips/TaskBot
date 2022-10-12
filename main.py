@@ -161,19 +161,24 @@ def setTaskReminder(update: Update, context: CallbackContext):
     try:
         date, time = update.message.text.split()
         dt = datetime(*list(map(int, date.split(".")))[::-1] + list(map(int, time.split("."))))
+        context.user_data["current_reminder_time"] = dt
         task = db.getTask(update.effective_chat.id, context.user_data["current_task_id"])
         db.createReminder(update.effective_chat.id, task.title, dt, task_id=task.task_id)
         updateReminders()
 
-        time_text = dt.strftime("%d.%m.%Y %H:%M")
-        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+        #time_text = dt.strftime("%d.%m.%Y %H:%M")
+        buttons = [["Да", "Нет"]]
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"🗑Удалить задачу после напоминания?", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+        #context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+
+        return 2.5
     except:
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Ошибка при добавлении напоминания. Вероятно, время введено в неверном формате.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+        
+        return ConversationHandler.END
 
-    context.user_data["current_task_id"] = -1
-    context.user_data["current_page"] = 0
-    
-    return ConversationHandler.END
+    #context.user_data["current_task_id"] = -1
+    #context.user_data["current_page"] = 0
 
 def cancelReminderCreation(update: Update, context: CallbackContext):
     context.user_data["current_task_id"] = -1
@@ -237,6 +242,24 @@ def autoDeleteTask(update: Update, context: CallbackContext):
 
     return ConversationHandler.END
 
+def setAutoDeletion(update: Update, context: CallbackContext):
+    dt = context.user_data["current_reminder_time"]
+    db.updateTask(update.effective_chat.id, context.user_data["current_task_id"], delTime=dt)
+    updateAutoDelTasks()
+    finishReminderCreation(update, context)
+
+    return ConversationHandler.END
+
+def finishReminderCreation(update: Update, context: CallbackContext):
+    dt = context.user_data["current_reminder_time"]
+    time_text = dt.strftime("%d.%m.%Y %H:%M")
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
+
+    context.user_data["current_task_id"] = -1
+    context.user_data["current_page"] = 0
+    context.user_data["current_reminder_time"] = None
+
+    return ConversationHandler.END
 
 viewTasksConvHandler = ConversationHandler(
     entry_points=[MessageHandler(Filters.regex("📝Мои задачи"), viewTasks)],
@@ -245,6 +268,7 @@ viewTasksConvHandler = ConversationHandler(
         0: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("✏️Создать задачу"), createTask), MessageHandler(Filters.text, viewTask), MessageHandler(Filters.regex("<"), tasksPrevPage), MessageHandler(Filters.regex(">"), tasksNextPage)],
         1: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("🏠На главную"), mainMenu), MessageHandler(Filters.regex("⏰Напоминания"), viewReminders), MessageHandler(Filters.regex("❌Удалить задачу"), deleteTask)],
         2: [MessageHandler(Filters.regex("🚫Отменить добавление напоминания"), cancelReminderCreation), MessageHandler(Filters.text, setTaskReminder)],
+        2.5: [MessageHandler(Filters.regex("Да"), setAutoDeletion), MessageHandler(Filters.regex("Нет"), finishReminderCreation)],
         3: [MessageHandler(Filters.regex("🚫Отменить создание задачи"), cancelTaskCreation), MessageHandler(Filters.text, setTitle)],
         4: [CommandHandler("skip", skipDesc), MessageHandler(Filters.regex("🚫Отменить создание задачи"), cancelTaskCreation), MessageHandler(Filters.text, setDesc)],
         5: [CommandHandler("menu", mainMenu), MessageHandler(Filters.regex("⏰Добавить напоминание"), createTaskReminder), MessageHandler(Filters.text, viewReminder)],
