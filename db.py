@@ -47,7 +47,7 @@ class DataBase:
 
     def getReminders(self, user_id: int = None, task_id: int = None) -> list[Reminder]:
         with self.connection.cursor() as cursor:
-            if user_id and task_id:
+            if user_id is not None and task_id is not None:
                 select_reminders = f"SELECT * FROM reminders WHERE task_id = {task_id}"
             else:
                 select_reminders = "SELECT * FROM reminders"

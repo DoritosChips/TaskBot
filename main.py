@@ -8,8 +8,11 @@ from classes import *
 import os
 from db import DataBase
 from polyschedule import *
+from dotenv import load_dotenv
 
-TOKEN = os.environ.get('TOKEN')
+load_dotenv()
+
+TOKEN = os.getenv('TOKEN')
 
 MAIN_MENU_BUTTONS = [[KeyboardButton("📝Мои задачи"), KeyboardButton("📅Календарь")]]
 TIMEZONE_DIFFERENCE = 3600 * 3 - datetime.now().astimezone().utcoffset().seconds
@@ -176,7 +179,8 @@ def setTaskReminder(update: Update, context: CallbackContext):
         #context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅Напоминание добавлено: {time_text}.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
 
         return 2.5
-    except:
+    except Exception as e:
+        print(e)
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"⛔️Ошибка при добавлении напоминания. Вероятно, время введено в неверном формате.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU_BUTTONS, resize_keyboard=True))
         
         return ConversationHandler.END
@@ -484,7 +488,7 @@ def main():
     autoDelTasks = db.getAutoDeleteTasks()
 
     global groups
-    groups = getGroups(json.load(open("groups.json")))
+    groups = getGroups(json.load(open("groups.json", encoding="utf8")))
 
     updater = Updater(TOKEN, use_context=True)
     dispatcher = updater.dispatcher

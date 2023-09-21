@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 host = os.environ.get('db-host')
 user = os.environ.get('db-user')

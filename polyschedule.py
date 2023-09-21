@@ -47,7 +47,7 @@ def getLessons(group_id: int, date: datetime) -> list[Lesson]:
     return lessons
 
 def main():
-    groups = getGroups(json.load(open("TaskBot/groups.json")))
+    groups = getGroups(json.load(open("groups.json", encoding="utf8")))
     lessons = getLessons(groups["3530902/20001"].id, datetime(2022,9,19))
     for lesson in lessons:
         teachers = "\n".join(teacher.full_name for teacher in lesson.teachers)
